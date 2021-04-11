@@ -16,7 +16,7 @@ from scraper import Scraper
 def main():
     '''
     Takes input for url + id
-    Ex.  scraperCli.py "https://www.master-plan.me/" "masterplan"
+    Ex.  scraperCli.py "https://www.master-plan.me/" "masterplan" "F:/test stuff"
     '''
     parser = argparse.ArgumentParser(description='Crawls the url for all pics')
 
