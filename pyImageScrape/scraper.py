@@ -264,16 +264,6 @@ class Scraper:
             for url in urls:
                 if url and url.startswith(self.baseUrl):
                     cleanList.append(url)
-                    """
-                    urlType = url.split("/")[-1].split("?")[0]
-                    if not("." in urlType):
-                        cleanList.append(url)
-                    else:
-                        for typee in self.supportedPageTypes:
-                            urlType = urlType.split(".")[-1]
-                            if urlType.lower().endswith(typee):
-                                cleanList.append(url)
-                    """
             return cleanList
 
         def appendPicContentUrls(urls):
