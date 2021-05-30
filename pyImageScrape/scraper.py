@@ -219,7 +219,7 @@ class Scraper:
 
     def parse_urls(self, content, locations, sources, urlLoc):
         """ parses urls out of page content """
-        soup = BeautifulSoup(content, features='lxml')
+        soup = BeautifulSoup(content)
         results = set()
         for location in locations:
             allLocations = soup.findAll(location)
