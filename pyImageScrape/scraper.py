@@ -5,11 +5,8 @@ import io
 import pathlib
 import hashlib
 import requests
-import random
-import atexit
 import sqlite3
 import os
-import re
 import urllib
 import pathlib
 
@@ -29,7 +26,9 @@ from sqlite3 import Error
 
 
 CHROME_USER_AGENT = """Mozilla/5.0"""
-IMG_FILE_TYPES = ['avif', 'gif', 'apng', 'jpg', 'jpeg', 'jfif', 'pjpeg', 'pjp', 'png', 'svg', 'webp']
+
+# https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html
+IMG_FILE_TYPES = ['jpg', 'jpeg', 'jfif', 'pjpeg', 'pjp', 'png', 'webp']
 
 
 # ================================================================
@@ -163,7 +162,6 @@ class Scraper:
                  imageMinHeight=512,
                  outputType='png',
                  maxThreads=8,
-                 driverLocation=get_current_folder()+"/chromedriver",
                  dataFolderPath=get_current_folder()+"/data"):
 
         # set vals
@@ -173,7 +171,6 @@ class Scraper:
         self.imageMinWidth = imageMinWidth
         self.imageMinHeight = imageMinHeight
         self.outputType = outputType
-        self.driverLocation = driverLocation
         self.dataPath = dataFolderPath + "/" + self.urlId
         self.imageSaveLoc = self.dataPath + "/images"
 
@@ -197,8 +194,7 @@ class Scraper:
                 "download_restrictions": 3,
             }
         )
-        return webdriver.Chrome(executable_path=self.driverLocation,
-                                options=chrome_options)
+        return webdriver.Chrome(options=chrome_options)
 
     def get_content_from_url(self, url):
         """ grabs page content from url. allows retries if the site attempts redirects."""
@@ -245,7 +241,7 @@ class Scraper:
         width, height = image.size
         if width >= self.imageMinWidth and height >= self.imageMinHeight:
             urlType = self.outputType if self.outputType else get_url_filetype(image_url)
-            filename = hashlib.sha1(image_content).hexdigest()[:10] + '.' + urlType
+            filename = hashlib.sha1(image_content).hexdigest()[:15] + '.' + urlType
             file_path = output_dir / filename
             image.save(file_path)
 
