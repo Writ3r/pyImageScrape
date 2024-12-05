@@ -29,7 +29,7 @@ def main():
     args = parser.parse_args()
 
     # run
-    Scraper(args.url, args.urlId, dataFolderPath=args.dataFolderPath).run()
+    Scraper(args.url, dataFolderPath=args.dataFolderPath).run()
 
 
 if __name__ == '__main__':

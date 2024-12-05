@@ -8,8 +8,11 @@ import requests
 import os
 import urllib
 import pathlib
+import time
 
+from typing import List
 from concurrent.futures import ThreadPoolExecutor, wait
+import threading
 from bs4 import BeautifulSoup
 from PIL import Image
 from selenium import webdriver
@@ -17,6 +20,7 @@ from selenium.webdriver.chrome.options import Options
 from sqlite3 import Error
 from shared import get_current_folder
 from sqlliteDatasource import get_sqllite_datastore
+from selenium.webdriver.remote.webdriver import WebDriver
 
 from abc import ABC, abstractmethod
 
@@ -31,7 +35,7 @@ from abc import ABC, abstractmethod
 CHROME_USER_AGENT = """Mozilla/5.0"""
 
 # https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html
-IMG_FILE_TYPES = ['jpg', 'jpeg', 'jfif', 'pjpeg', 'pjp', 'png', 'webp']
+IMG_FILE_TYPES = ["jpg", "jpeg", "jfif", "pjpeg", "pjp", "png", "webp"]
 
 
 # ================================================================
@@ -41,11 +45,12 @@ IMG_FILE_TYPES = ['jpg', 'jpeg', 'jfif', 'pjpeg', 'pjp', 'png', 'webp']
 # ================================================================
 
 
-def build_base_url(url):
+def build_base_url(url: str):
     parsedUrl = urllib.parse.urlparse(url)
-    return parsedUrl.scheme + '://' + parsedUrl.netloc
+    return parsedUrl.scheme + "://" + parsedUrl.netloc
 
-def get_url_filetype(url:str):
+
+def get_url_filetype(url: str):
     return url.split("/")[-1].split("?")[0].split(".")[-1]
 
 
@@ -59,88 +64,111 @@ def get_url_filetype(url:str):
 class DataStore(ABC):
 
     @abstractmethod
-    def add_to_visit_urls(self, urlLocs, table):
-        """add multiple urls to visit"""
+    def add_to_visit_content_urls(self, urlLocs):
+        """add multiple content urls to visit"""
         pass
 
     @abstractmethod
-    def add_visited_urls(self, urlLocs, table):
-        """tag multiple urls as visited"""
+    def add_to_visit_pic_urls(self, urlLocs):
+        """add multiple pic urls to visit"""
         pass
 
     @abstractmethod
-    def get_next_to_visit(self, table):
-        """get the next url to visit"""
+    def add_visited_content_urls(self, urlLocs):
+        """tag multiple content urls as visited"""
         pass
 
     @abstractmethod
-    def get_all_to_visit(self, table):
-        """get all the next urls to visit"""
+    def add_visited_pic_urls(self, urlLocs):
+        """tag multiple pic urls as visited"""
+        pass
+
+    @abstractmethod
+    def get_next_pic_to_visit(self):
+        """get the next pic url to visit"""
+        pass
+
+    @abstractmethod
+    def get_next_content_to_visit(self):
+        """get the next content url to visit"""
+        pass
+
+    @abstractmethod
+    def get_all_pics_to_visit(self):
+        """get all the next pic urls to visit"""
         pass
 
 
-class Scraper:
-    """
-    crawls a website, and scrapes all images.
-    saves them to output dir
-    chrome drivers: https://chromedriver.chromium.org/downloads
-    """
+class URLScraper:
 
-    def __init__(self,
-                 baseUrl="https://www.master-plan.me/Example/",
-                 urlId="testboi",
-                 redriectRetries=3,
-                 imageMinWidth=512,
-                 imageMinHeight=512,
-                 outputType='png',
-                 maxThreads=8,
-                 dataFolderPath=get_current_folder()+"/data",
-                 dataStore:DataStore=None):
-
-        # set vals
-        self.urlId = urlId
-        self.baseUrl = baseUrl
-        self.redriectRetries = redriectRetries
-        self.imageMinWidth = imageMinWidth
-        self.imageMinHeight = imageMinHeight
-        self.outputType = outputType
-        self.dataPath = dataFolderPath + "/" + self.urlId
-        self.imageSaveLoc = self.dataPath + "/images"
-
-        # build objs
-        self.imageSavePath = pathlib.Path(self.imageSaveLoc)
-        self.strippedBaseUrl = build_base_url(self.baseUrl)
+    def __init__(self, dataStore: DataStore, baseUrl: str, redriectRetries: int = 3):
+        self.dataStore = dataStore
         self.driver = self.build_driver()
-        self._threadExec = ThreadPoolExecutor(max_workers=maxThreads)
+        self.redriectRetries = redriectRetries
+        self.baseUrl = baseUrl
 
-        # use sqllite datasource if not given
-        self.dataStore = dataStore if dataStore is not None else get_sqllite_datastore(self.dataPath)
+    def scrape_urls(self):
+        # put root URL into queue
+        self.dataStore.add_to_visit_content_urls([self.baseUrl])
 
-        # mkdir img loc
-        if not os.path.exists(self.imageSaveLoc):
-            os.makedirs(self.imageSaveLoc)
+        """ scrapes urls of all img content & links to other pages """
+        # run until there are no pages left, or program ends
+        while True:
 
-    def build_driver(self):
-        """ builds a headless browser with downloads turned off """
-        chrome_options = Options()
-        chrome_options.add_argument("--headless")
-        chrome_options.add_experimental_option(
-            "prefs", {
-                "download_restrictions": 3,
-            }
-        )
-        return webdriver.Chrome(options=chrome_options)
+            # grab next URL
+            newUrl = self.dataStore.get_next_content_to_visit()
+            if newUrl is None:
+                break
+            try:
+                # parse all content
+                changedUrl, content = self.get_content_from_url(newUrl)
+
+                # get + save content URLs
+                content_urls = self.parse_urls(
+                    content=content,
+                    locations=["a"],
+                    sources=["href"],
+                    urlLoc=changedUrl,
+                )
+                self.dataStore.add_to_visit_content_urls(
+                    self.cleanContentUrls(content_urls)
+                )
+                # get + save image URLs
+                image_urls = self.parse_urls(
+                    content=content,
+                    locations=["img"],
+                    sources=["src"],
+                    urlLoc=changedUrl,
+                )
+                image_urls.update(self.appendPicContentUrls(content_urls))
+                self.dataStore.add_to_visit_pic_urls(image_urls)
+
+            except Exception as e:
+                print(e)
+
+            # mark current content url as visited
+            self.dataStore.add_visited_content_urls([newUrl])
+
+            # remake driver if too many tabs (need better way to do this, possibly keep track of current tab and close all others)
+            if len(self.driver.window_handles) > 10:
+                self.driver.quit()
+                self.driver = self.build_driver()
+
+        # exit since finished
+        self.driver.quit()
 
     def get_content_from_url(self, url):
-        """ grabs page content from url. allows retries if the site attempts redirects."""
+        """grabs page content from url. allows retries if the site attempts redirects."""
         tries = 0
         currentUrl = None
         page_content = None
         # get content
-        while tries <= self.redriectRetries and not(currentUrl == url):
+        while tries <= self.redriectRetries and not (currentUrl == url):
             self.driver.get(url)
             try:
-                self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                self.driver.execute_script(
+                    "window.scrollTo(0, document.body.scrollHeight);"
+                )
             except Exception:
                 pass
             page_content = self.driver.page_source
@@ -149,7 +177,7 @@ class Scraper:
         return currentUrl, page_content
 
     def parse_urls(self, content, locations, sources, urlLoc):
-        """ parses urls out of page content """
+        """parses urls out of page content"""
         soup = BeautifulSoup(content, features="html.parser")
         results = set()
         for location in locations:
@@ -160,108 +188,160 @@ class Scraper:
                         src = a.get(source)
                         if src:
                             try:
-                                if not(src.lower().startswith('http')):
+                                if not (src.lower().startswith("http")):
                                     src = urllib.parse.urljoin(urlLoc, src)
                                 results.add(src)
                             except Exception as e:
                                 print(e)
         return results
 
+    # TODO: remove element id from links (ex. http://localhost/hi#test)
+    def cleanContentUrls(self, urls: List[str]):
+        """cleans out all content urls of 'bad' ones"""
+        cleanList = []
+        for url in urls:
+            if url and url.startswith(self.baseUrl):
+                cleanList.append(url)
+        return cleanList
+
+    def appendPicContentUrls(self, urls: List[str]):
+        """checks content urls for pic references"""
+        cleanList = []
+        for url in urls:
+            if url:
+                urlType = url.split("/")[-1]
+                if "." in urlType:
+                    for typee in IMG_FILE_TYPES:
+                        if urlType.lower().endswith(typee):
+                            cleanList.append(url)
+        return cleanList
+
+    def build_driver(self):
+        """builds a headless browser with downloads turned off"""
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_experimental_option(
+            "prefs",
+            {
+                "download_restrictions": 3,
+            },
+        )
+        return webdriver.Chrome(options=chrome_options)
+
+
+class ImageScraper:
+
+    def __init__(
+        self,
+        dataStore: DataStore,
+        maxThreads: int = 8,
+        imageMinWidth=400,
+        imageMinHeight=300,
+        outputType="png",
+        dataFolderPath=get_current_folder() + "/data",
+    ):
+        self.dataStore = dataStore
+        self._threadExec = ThreadPoolExecutor(max_workers=maxThreads)
+        self.imageMinWidth = imageMinWidth
+        self.imageMinHeight = imageMinHeight
+        self.outputType = outputType
+        self.imageSaveLoc = dataFolderPath + "/images"
+        self.imageSavePath = pathlib.Path(self.imageSaveLoc)
+        self.continueScraping = True
+        # mkdir img loc
+        if not os.path.exists(self.imageSaveLoc):
+            os.makedirs(self.imageSaveLoc)
+
+    def scrape_images(self):
+        # run until there are no pics left or program ends
+        while self.continueScraping:
+            try:
+                # walk all image urls on the page
+                futures = []
+                allToVisit = self.dataStore.get_all_pics_to_visit()
+
+                if not allToVisit:
+                    time.sleep(1)
+
+                for item in allToVisit:
+                    try:
+                        future = self._threadExec.submit(
+                            self.get_and_save_image_to_file,
+                            item,
+                            output_dir=self.imageSavePath,
+                        )
+                        futures.append(future)
+                    except Exception as e:
+                        print("Failed to download picture: " + str(item))
+                        print(e)
+                wait(futures)
+                # mark all current urls as visited
+                self.dataStore.add_visited_pic_urls(allToVisit)
+            except Exception as e:
+                print(e)
+
     def get_and_save_image_to_file(self, image_url, output_dir):
-        """ grabes image, checks it, and saves image to output directory """
+        """grabes image, checks it, and saves image to output directory"""
         response = requests.get(image_url, headers={"User-agent": CHROME_USER_AGENT})
         image_content = response.content
         image_file = io.BytesIO(image_content)
         image = Image.open(image_file).convert("RGB")
         width, height = image.size
         if width >= self.imageMinWidth and height >= self.imageMinHeight:
-            urlType = self.outputType if self.outputType else get_url_filetype(image_url)
-            filename = hashlib.sha1(image_content).hexdigest()[:15] + '.' + urlType
+            urlType = (
+                self.outputType if self.outputType else get_url_filetype(image_url)
+            )
+            filename = hashlib.sha1(image_content).hexdigest()[:15] + "." + urlType
             file_path = output_dir / filename
             image.save(file_path)
 
+    def stop_image_scraping(self):
+        self.continueScraping = False
+
+
+class Scraper:
+    """
+    crawls a website, and scrapes all images.
+    saves them to output dir
+    """
+
+    def __init__(
+        self,
+        baseUri: str,
+        dataFolderPath=get_current_folder() + "/data",
+        urlscraper: URLScraper = None,
+        imgScraper: ImageScraper = None,
+        dataStore: DataStore = None,
+    ):
+        # use sqllite datasource if not given
+        self.dataStore = (
+            dataStore
+            if dataStore is not None
+            else get_sqllite_datastore(dataFolderPath)
+        )
+
+        # setup url scraper
+        self.urlscraper = (
+            urlscraper
+            if urlscraper is not None
+            else URLScraper(self.dataStore, baseUri)
+        )
+
+        # setup img scraper
+        self.imgScraper = (
+            imgScraper
+            if imgScraper is not None
+            else ImageScraper(self.dataStore,  dataFolderPath=dataFolderPath)
+        )
+
     def run(self):
-        """
-        runs the scraper until it runs out of content urls
-        - works in a way that you can stop/restart at any time without missing images
-        """
-
-        # put root URL into queue
-        self.dataStore.add_to_visit_urls([self.baseUrl], self.dataStore.CONTENT_URL_TB)
-
-        def cleanContentUrls(urls):
-            """ cleans out all content urls of 'bad' ones """
-            cleanList = []
-            for url in urls:
-                if url and url.startswith(self.baseUrl):
-                    cleanList.append(url)
-            return cleanList
-
-        def appendPicContentUrls(urls):
-            """ checks content urls for pic references """
-            cleanList = []
-            for url in urls:
-                if url:
-                    urlType = url.split("/")[-1]
-                    if "." in urlType:
-                        for typee in IMG_FILE_TYPES:
-                            if urlType.lower().endswith(typee):
-                                cleanList.append(url)
-            return cleanList
-
-        # run until there are no pages left, or program ends
-        while True:
-
-            # grab next URL
-            newUrl = self.dataStore.get_next_to_visit(self.dataStore.CONTENT_URL_TB)
-            if newUrl is None:
-                break
-
-            try:
-                # parse all content
-                changedUrl, content = self.get_content_from_url(newUrl)
-
-                # get + save content URLs
-                content_urls = self.parse_urls(
-                    content=content, locations=["a"], sources=["href"], urlLoc=changedUrl
-                )
-                self.dataStore.add_to_visit_urls(cleanContentUrls(content_urls),
-                                                 self.dataStore.CONTENT_URL_TB)
-                # get + save image URLs
-                image_urls = self.parse_urls(
-                    content=content, locations=["img"], sources=["src"], urlLoc=changedUrl
-                )
-                image_urls.update(appendPicContentUrls(content_urls))
-                self.dataStore.add_to_visit_urls(image_urls,
-                                                 self.dataStore.PIC_URL_TB)
-
-                # walk all image urls on the page
-                futures = []
-                allToVisit = self.dataStore.get_all_to_visit(self.dataStore.PIC_URL_TB)
-                for item in allToVisit:
-                    try:
-                        future = self._threadExec.submit(self.get_and_save_image_to_file,
-                                                         item,
-                                                         output_dir=self.imageSavePath)
-                        futures.append(future)
-                    except Exception as e:
-                        print('Failed to download picture: ' + str(item))
-                        print(e)
-                wait(futures)
-
-                # blacklist all photo urls visited
-                self.dataStore.add_visited_urls(allToVisit, self.dataStore.PIC_URL_TB)
-
-            except Exception as e:
-                print(e)
-
-            # blacklist current content url
-            self.dataStore.add_visited_urls([newUrl], self.dataStore.CONTENT_URL_TB)
-
-            # remake driver if too many tabs (need better way to do this)
-            if len(self.driver.window_handles) > 10:
-                self.driver.quit()
-                self.driver = self.build_driver()
-
-        # exit
-        self.driver.quit()
+        # startup image scraping
+        scrape_img_thread = threading.Thread(target=self.imgScraper.scrape_images)
+        scrape_img_thread.start()
+        # startup url scraping
+        scrape_url_thread = threading.Thread(target=self.urlscraper.scrape_urls)
+        scrape_url_thread.start()
+        # finish out threads
+        scrape_url_thread.join()
+        self.imgScraper.stop_image_scraping()
+        scrape_img_thread.join()
