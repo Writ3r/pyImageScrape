@@ -81,38 +81,6 @@ class ImageScraper:
         except Exception as e:
             self.dataStore.add_visited_pic_url(url, "UNKNOWN_FAILURE")
 
-    """
-    def scrape_images(self):
-        # run until there are no pics left or program ends
-        picsStillExist = True
-        while self.continueScraping or picsStillExist:
-            try:
-                # walk all image urls on the page
-                futures = []
-                allToVisit = self.dataStore.get_all_pics_to_visit()
-
-                # go back if nothing to visit
-                if allToVisit is None or len(allToVisit) == 0:
-                    time.sleep(1)
-                    picsStillExist = False
-                    continue
-
-                for item in allToVisit:
-                    try:
-                        future = self._threadExec.submit(
-                            self._get_and_save_image_to_file,
-                            item,
-                            output_dir=self.imageSavePath,
-                        )
-                        futures.append(future)
-                    except Exception as e:
-                        print("Failed to download picture: " + str(item))
-                        print(e)
-                wait(futures)
-            except Exception as e:
-                print(e)
-    """
-
     def _get_and_save_image_to_file(self, image_url, output_dir):
         """grabes image, checks it, and saves image to output directory"""
         try:

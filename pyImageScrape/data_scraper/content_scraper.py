@@ -46,40 +46,6 @@ class URLScraper:
                 self.driver.quit()
                 self.driver = self._build_driver()
 
-    """
-    def scrape_urls(self):
-
-        # put root URL into queue
-        self.dataStore.add_to_visit_content_urls([self.baseUrl])
-
-        # run until there are no pages left, or program ends
-        while True:
-            # grab next URL
-            newUrl = self.dataStore.get_next_content_to_visit()
-            if newUrl is None:
-                break
-            try:
-                # parse all content
-                changedUrl, content = self._get_content_from_url(newUrl)
-                # store content and pics
-                self._store_content_urls(content, changedUrl)
-                self._store_pic_urls(content, changedUrl)
-                # mark current content url as visited
-                self.dataStore.add_visited_content_url(newUrl)
-                logging.info(f"Scraped content {newUrl=}")
-            except Exception as e:
-                # mark current content url as visited & failed
-                self.dataStore.add_visited_content_url(newUrl, "Failed")
-
-            # remake driver if too many tabs (need better way to do this, possibly keep track of current tab and close all others)
-            if len(self.driver.window_handles) > 10:
-                self.driver.quit()
-                self.driver = self._build_driver()
-
-        # exit since finished
-        self.driver.quit()
-    """
-
     def _store_content_urls(self, content, url):
         """gets content URLs from the page content & stores them in the datasource"""
         # get + save content URLs
