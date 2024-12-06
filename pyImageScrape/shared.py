@@ -21,18 +21,18 @@ class DataStore(ABC):
         pass
 
     @abstractmethod
-    def add_visited_content_urls(self, urlLocs):
-        """tag multiple content urls as visited"""
+    def add_visited_content_url(self, urlLoc, err = None):
+        """tag content url as visited"""
         pass
 
     @abstractmethod
     def add_visited_pic_url(self, urlLoc, err = None):
-        """tag multiple pic urls as visited"""
+        """tag pic url as visited"""
         pass
 
     @abstractmethod
     def add_stored_pic_url(self, urlLoc, filePath, shaPicHash):
-        """tag multiple pic urls as visited"""
+        """store a picture from a url"""
         pass
 
     @abstractmethod

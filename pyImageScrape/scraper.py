@@ -4,7 +4,7 @@
 import threading
 
 from shared import get_current_folder, DataStore
-from datasource.sqlliteDatasource import get_sqllite_datastore
+from datasource.sqllite_datasource import get_sqllite_datastore
 from scrapers.content_scraper import URLScraper
 from scrapers.pic_grabber import ImageScraper
 
@@ -53,5 +53,5 @@ class Scraper:
         scrape_url_thread.start()
         # finish out threads
         scrape_url_thread.join()
-        self.imgScraper.can_stop_image_scraping()
+        self.imgScraper.set_can_stop_image_scraping()
         scrape_img_thread.join()

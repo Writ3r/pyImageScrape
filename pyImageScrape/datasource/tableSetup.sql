@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS urls (
     urlLoc TEXT PRIMARY KEY NOT NULL,
+    err TEXT,
     visited INTEGER
 );
 

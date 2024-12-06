@@ -13,65 +13,72 @@ from shared import DataStore
 # https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html
 IMG_FILE_TYPES = ["jpg", "jpeg", "jfif", "pjpeg", "pjp", "png", "webp"]
 
+
 class URLScraper:
 
     def __init__(self, dataStore: DataStore, baseUrl: str, redriectRetries: int = 3):
         self.dataStore = dataStore
-        self.driver = self.build_driver()
+        self.driver = self._build_driver()
         self.redriectRetries = redriectRetries
         self.baseUrl = baseUrl
 
     def scrape_urls(self):
+        """scrapes urls of all img content & links to other pages"""
+
         # put root URL into queue
         self.dataStore.add_to_visit_content_urls([self.baseUrl])
 
-        """ scrapes urls of all img content & links to other pages """
         # run until there are no pages left, or program ends
         while True:
-
             # grab next URL
             newUrl = self.dataStore.get_next_content_to_visit()
             if newUrl is None:
                 break
             try:
                 # parse all content
-                changedUrl, content = self.get_content_from_url(newUrl)
-
-                # get + save content URLs
-                content_urls = self.parse_urls(
-                    content=content,
-                    locations=["a"],
-                    sources=["href"],
-                    urlLoc=changedUrl,
-                )
-                self.dataStore.add_to_visit_content_urls(
-                    self.cleanContentUrls(content_urls)
-                )
-                # get + save image URLs
-                image_urls = self.parse_urls(
-                    content=content,
-                    locations=["img"],
-                    sources=["src"],
-                    urlLoc=changedUrl,
-                )
-                image_urls.update(self.appendPicContentUrls(content_urls))
-                self.dataStore.add_to_visit_pic_urls(image_urls)
-
+                changedUrl, content = self._get_content_from_url(newUrl)
+                # store content and pics
+                self._store_content_urls(content, changedUrl)
+                self._store_pic_urls(content, changedUrl)
+                # mark current content url as visited
+                self.dataStore.add_visited_content_url(newUrl)
             except Exception as e:
-                print(e)
-
-            # mark current content url as visited
-            self.dataStore.add_visited_content_urls([newUrl])
+                # mark current content url as visited & failed
+                self.dataStore.add_visited_content_url(newUrl, "Failed")
 
             # remake driver if too many tabs (need better way to do this, possibly keep track of current tab and close all others)
             if len(self.driver.window_handles) > 10:
                 self.driver.quit()
-                self.driver = self.build_driver()
+                self.driver = self._build_driver()
 
         # exit since finished
         self.driver.quit()
 
-    def get_content_from_url(self, url):
+    def _store_content_urls(self, content, url):
+        """gets content URLs from the page content & stores them in the datasource"""
+        # get + save content URLs
+        content_urls = self._parse_urls(
+            content=content,
+            locations=["a"],
+            sources=["href"],
+            urlLoc=url,
+        )
+        self.dataStore.add_to_visit_content_urls(self._clean_content_urls(content_urls))
+        # Slight hack: some content urls are actually pics, add those as pics as well to check them
+        self.dataStore.add_to_visit_pic_urls(self._get_pic_content_urls(content_urls))
+
+    def _store_pic_urls(self, content, url):
+        """gets pic URLs from the page content & stores them in the datasource"""
+        # get + save image URLs
+        image_urls = self._parse_urls(
+            content=content,
+            locations=["img"],
+            sources=["src"],
+            urlLoc=url,
+        )
+        self.dataStore.add_to_visit_pic_urls(image_urls)
+
+    def _get_content_from_url(self, url):
         """grabs page content from url. allows retries if the site attempts redirects."""
         tries = 0
         currentUrl = None
@@ -90,7 +97,7 @@ class URLScraper:
             tries += 1
         return currentUrl, page_content
 
-    def parse_urls(self, content, locations, sources, urlLoc):
+    def _parse_urls(self, content, locations, sources, urlLoc):
         """parses urls out of page content"""
         soup = BeautifulSoup(content, features="html.parser")
         results = set()
@@ -110,7 +117,7 @@ class URLScraper:
         return results
 
     # TODO: remove element id from links (ex. http://localhost/hi#test)
-    def cleanContentUrls(self, urls: List[str]):
+    def _clean_content_urls(self, urls: List[str]):
         """cleans out all content urls of 'bad' ones"""
         cleanList = []
         for url in urls:
@@ -118,7 +125,7 @@ class URLScraper:
                 cleanList.append(url)
         return cleanList
 
-    def appendPicContentUrls(self, urls: List[str]):
+    def _get_pic_content_urls(self, urls: List[str]):
         """checks content urls for pic references"""
         cleanList = []
         for url in urls:
@@ -130,7 +137,7 @@ class URLScraper:
                             cleanList.append(url)
         return cleanList
 
-    def build_driver(self):
+    def _build_driver(self):
         """builds a headless browser with downloads turned off"""
         chrome_options = Options()
         chrome_options.add_argument("--headless")

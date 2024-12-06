@@ -1,10 +1,10 @@
-
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 import sqlite3
 
 from shared import get_current_folder
+
 
 class DatabaseConnector:
 
@@ -14,13 +14,13 @@ class DatabaseConnector:
         self._run_setup()
 
     def _create_connection(self):
-        """ create db conn """
+        """create db conn"""
         conn = sqlite3.connect(self.dbPath)
         conn.row_factory = sqlite3.Row
         return conn
 
     def _run_setup(self):
-        """ sets up database tables """
+        """sets up database tables"""
         with self._create_connection() as conn:
             cursor = conn.cursor()
             sql_file = open(self.setupFileLoc)
@@ -55,23 +55,22 @@ class SqlLiteDataStore:
     CREATE = "INSERT OR IGNORE INTO TB_URL (urlLoc, visited) VALUES (?,?);"
     READ_ONE_LIMIT = "SELECT * FROM TB_URL WHERE visited = ? LIMIT 1;"
     READ_ALL = "SELECT * FROM TB_URL WHERE visited = ?;"
-    UPDATE_URL = "UPDATE TB_URL SET urlLoc = ?, visited = ? WHERE urlLoc = ?;"
-    SET_PIC_URL_VISTIED = "UPDATE picUrls SET urlLoc = ?, visited = ?, err = ? WHERE urlLoc = ?;"
+    UPDATE_URL = "UPDATE TB_URL SET urlLoc = ?, visited = ?, err = ? WHERE urlLoc = ?;"
     CREATE_STORED_PIC_URL = "INSERT OR IGNORE INTO storedPics (urlLoc, filePath, shaPicHash) VALUES (?,?,?);"
     CHECK_VISITED = "SELECT * FROM TB_URL WHERE urlLoc = ? AND visited = 1;"
     CHECK_EXISTS = "SELECT * FROM TB_URL WHERE urlLoc = ?;"
 
     def __init__(self, dbConn: DatabaseConnector):
         self.dbConn = dbConn
-    
+
+    # ACCESSOR METHODS
+    # ================================
+
     def add_to_visit_content_urls(self, urlLocs):
         self._add_to_visit_urls(urlLocs, SqlLiteDataStore.CONTENT_URL_TB)
 
     def add_to_visit_pic_urls(self, urlLocs):
         self._add_to_visit_urls(urlLocs, SqlLiteDataStore.PIC_URL_TB)
-
-    def add_visited_content_urls(self, urlLocs):
-        self._add_visited_urls(urlLocs, SqlLiteDataStore.CONTENT_URL_TB)
 
     def get_next_pic_to_visit(self):
         return self._get_next_to_visit(SqlLiteDataStore.PIC_URL_TB)
@@ -81,48 +80,54 @@ class SqlLiteDataStore:
 
     def get_all_pics_to_visit(self):
         return self._get_all_to_visit(SqlLiteDataStore.PIC_URL_TB)
-    
-    def add_visited_pic_url(self, urlLoc, err = None):
-        self.dbConn.execute(SqlLiteDataStore.SET_PIC_URL_VISTIED, (urlLoc, 1, err, urlLoc))
+
+    def add_visited_content_url(self, urlLoc, err=None):
+        self._add_visited_url(urlLoc, err, SqlLiteDataStore.CONTENT_URL_TB)
+
+    def add_visited_pic_url(self, urlLoc, err=None):
+        self._add_visited_url(urlLoc, err, SqlLiteDataStore.PIC_URL_TB)
 
     def add_stored_pic_url(self, urlLoc, filePath, shaPicHash):
         # would also be good to save off timestamp of grab & alt data
-        self.dbConn.execute(SqlLiteDataStore.CREATE_STORED_PIC_URL, (urlLoc, filePath, shaPicHash))
+        self.dbConn.execute(
+            SqlLiteDataStore.CREATE_STORED_PIC_URL, (urlLoc, filePath, shaPicHash)
+        )
+
+    # INTERNAL METHODS
+    # ================================
 
     def _add_to_visit_urls(self, urlLocs, table):
-        """ add multiple urls to visit """
+        """add multiple urls to visit"""
         argsList = []
         for url in urlLocs:
             argsList.append((url, 0))
-        query = SqlLiteDataStore.CREATE.replace('TB_URL', table)
+        query = SqlLiteDataStore.CREATE.replace("TB_URL", table)
         self.dbConn.executeBatch(query, argsList)
 
-    def _add_visited_urls(self, urlLocs, table):
-        """ tag multiple urls as visited """
-        argsList = []
-        for url in urlLocs:
-            argsList.append((url, 1, url))
-        query = SqlLiteDataStore.UPDATE_URL.replace('TB_URL', table)
-        self.dbConn.executeBatch(query, argsList)
+    def _add_visited_url(self, urlLoc, err, table):
+        """tag url as visited"""
+        query = SqlLiteDataStore.UPDATE_URL.replace("TB_URL", table)
+        self.dbConn.execute(query, (urlLoc, 1, err, urlLoc))
 
     def _get_next_to_visit(self, table):
-        """ get the next url to visit """
-        query = SqlLiteDataStore.READ_ONE_LIMIT.replace('TB_URL', table)
+        """get the next url to visit"""
+        query = SqlLiteDataStore.READ_ONE_LIMIT.replace("TB_URL", table)
         resp = self.dbConn.execute(query, (0,))
         if len(resp) > 0:
-            return resp[0]['urlLoc']
+            return resp[0]["urlLoc"]
         else:
             return None
 
     def _get_all_to_visit(self, table):
-        """ get all the next urls to visit """
-        query = SqlLiteDataStore.READ_ALL.replace('TB_URL', table)
+        """get all the next urls to visit"""
+        query = SqlLiteDataStore.READ_ALL.replace("TB_URL", table)
         resp = self.dbConn.execute(query, (0,))
         visitList = []
         for item in resp:
-            visitList.append(item['urlLoc'])
+            visitList.append(item["urlLoc"])
         return visitList
 
+
 def get_sqllite_datastore(dataPath: str):
-    """ gets an sqllite impl of the datasource"""
+    """gets an sqllite impl of the datasource"""
     return SqlLiteDataStore(DatabaseConnector(dataPath))

@@ -71,7 +71,7 @@ class ImageScraper:
                 for item in allToVisit:
                     try:
                         future = self._threadExec.submit(
-                            self.get_and_save_image_to_file,
+                            self._get_and_save_image_to_file,
                             item,
                             output_dir=self.imageSavePath,
                         )
@@ -83,10 +83,10 @@ class ImageScraper:
             except Exception as e:
                 print(e)
 
-    def get_and_save_image_to_file(self, image_url, output_dir):
+    def _get_and_save_image_to_file(self, image_url, output_dir):
         """grabes image, checks it, and saves image to output directory"""
         try:
-            self._get_and_save_image_to_file(image_url, output_dir)
+            self._get_and_save_image_to_file_impl(image_url, output_dir)
         except ImgReqFailed as e:
             self.dataStore.add_visited_pic_url(image_url, "HTTP_STATUS: " + e.statusCode)
         except ImgTooSmall as e:
@@ -100,7 +100,7 @@ class ImageScraper:
         except Exception as e:
             self.dataStore.add_visited_pic_url(image_url, "UNKNOWN_FAILURE")
     
-    def _get_and_save_image_to_file(self, image_url, output_dir):
+    def _get_and_save_image_to_file_impl(self, image_url, output_dir):
         # make the request
         session = requests.Session()
         session.max_redirects = 5
@@ -133,5 +133,5 @@ class ImageScraper:
         self.dataStore.add_stored_pic_url(image_url, fileRelPath, filesha)
         self.dataStore.add_visited_pic_url(image_url)
 
-    def can_stop_image_scraping(self):
+    def set_can_stop_image_scraping(self):
         self.continueScraping = False
