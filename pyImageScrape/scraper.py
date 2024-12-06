@@ -84,6 +84,11 @@ class DataStore(ABC):
         pass
 
     @abstractmethod
+    def add_stored_pic_url(self, urlLoc, filePath, shaPicHash):
+        """tag multiple pic urls as visited"""
+        pass
+
+    @abstractmethod
     def get_next_pic_to_visit(self):
         """get the next pic url to visit"""
         pass
@@ -260,8 +265,10 @@ class ImageScraper:
                 futures = []
                 allToVisit = self.dataStore.get_all_pics_to_visit()
 
-                if not allToVisit:
+                # go back if nothing to visit
+                if allToVisit is None or len(allToVisit) == 0:
                     time.sleep(1)
+                    continue
 
                 for item in allToVisit:
                     try:
@@ -275,14 +282,21 @@ class ImageScraper:
                         print("Failed to download picture: " + str(item))
                         print(e)
                 wait(futures)
-                # mark all current urls as visited
-                self.dataStore.add_visited_pic_urls(allToVisit)
             except Exception as e:
                 print(e)
 
     def get_and_save_image_to_file(self, image_url, output_dir):
         """grabes image, checks it, and saves image to output directory"""
-        response = requests.get(image_url, headers={"User-agent": CHROME_USER_AGENT})
+        try:
+            self._get_and_save_image_to_file(image_url, output_dir)
+        except:
+            pass
+        self.dataStore.add_visited_pic_urls([image_url])
+    
+    def _get_and_save_image_to_file(self, image_url, output_dir):
+        response = requests.get(
+            image_url, headers={"User-agent": CHROME_USER_AGENT}, timeout=30
+        )
         image_content = response.content
         image_file = io.BytesIO(image_content)
         image = Image.open(image_file).convert("RGB")
@@ -291,9 +305,13 @@ class ImageScraper:
             urlType = (
                 self.outputType if self.outputType else get_url_filetype(image_url)
             )
-            filename = hashlib.sha1(image_content).hexdigest()[:15] + "." + urlType
-            file_path = output_dir / filename
+            filesha = hashlib.sha1(image_content).hexdigest()[:15]
+            filename = filesha + "." + urlType
+            fileRelPath = filename
+            file_path = output_dir / fileRelPath
             image.save(file_path)
+            self.dataStore.add_stored_pic_url(image_url, fileRelPath, filesha)
+        raise Exception("Failed to parse url")
 
     def stop_image_scraping(self):
         self.continueScraping = False
@@ -331,7 +349,7 @@ class Scraper:
         self.imgScraper = (
             imgScraper
             if imgScraper is not None
-            else ImageScraper(self.dataStore,  dataFolderPath=dataFolderPath)
+            else ImageScraper(self.dataStore, dataFolderPath=dataFolderPath)
         )
 
     def run(self):
