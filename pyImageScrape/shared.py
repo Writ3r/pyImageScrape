@@ -2,11 +2,18 @@
 # -*- coding: utf-8 -*-
 
 import pathlib
+import io
 
 from abc import ABC, abstractmethod
 
 def get_current_folder(file):
     return str(pathlib.Path(file).parent.absolute())
+
+class FileStorage(ABC):
+
+    @abstractmethod
+    def store_file(self, bytes:bytes, path:str):
+        """stores files to some impl"""
 
 class ScrapeJobProducer(ABC):
 

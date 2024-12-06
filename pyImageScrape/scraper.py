@@ -3,11 +3,12 @@
 
 import logging
 
-from shared import get_current_folder, DataStore, ScrapeJobProducer
+from shared import get_current_folder, DataStore, ScrapeJobProducer, FileStorage
 from datasource.sqllite_datasource import get_sqllite_datastore
 from data_scraper.content_scraper import URLScraper
 from data_scraper.pic_scraper import ImageScraper
 from producer.scrape_job_producer import SimpleScrapeJobProducer
+from file_storage.local_filestorage import LocalFileStorage
 
 logging.basicConfig(level=logging.INFO, format="{asctime} - {levelname} - {message}", style="{", datefmt="%Y-%m-%d %H:%M",)
 
@@ -24,6 +25,7 @@ class Scraper:
         urlscraper: URLScraper = None,
         imgScraper: ImageScraper = None,
         dataStore: DataStore = None,
+        fileStorage: FileStorage = None,
         scrapeJobProducer: ScrapeJobProducer = None
     ):
         # setup datastore, use sqllite datasource if not given
@@ -40,18 +42,25 @@ class Scraper:
             else URLScraper(self.dataStore, baseUrl)
         )
 
+        # setup file storage provider
+        self.fileStorage = (
+            fileStorage
+            if fileStorage is not None
+            else LocalFileStorage(dataFolderPath + "/images")
+        )
+
         # setup img scraper
         self.imgScraper = (
             imgScraper
             if imgScraper is not None
-            else ImageScraper(self.dataStore, dataFolderPath=dataFolderPath)
+            else ImageScraper(self.dataStore, self.fileStorage)
         )
 
         # setup scrape job producer
         self.scrapeJobProducer = (
             scrapeJobProducer
             if scrapeJobProducer is not None
-            else SimpleScrapeJobProducer(baseUrl, self.dataStore, self.urlscraper,self.imgScraper)
+            else SimpleScrapeJobProducer(baseUrl, self.dataStore, self.urlscraper, self.imgScraper)
         )
 
     def run(self):
