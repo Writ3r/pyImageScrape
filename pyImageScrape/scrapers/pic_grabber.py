@@ -89,6 +89,7 @@ class ImageScraper:
         try:
             self._get_and_save_image_to_file_impl(image_url, output_dir)
         except ImgReqFailed as e:
+            self.dataStore.add_visited_pic_url(image_url, "HTTP_STATUS: " + str(e.statusCode))
         except ImgTooSmall as e:
             self.dataStore.add_visited_pic_url(image_url, "IMG_TOO_SMALL: width=" + str(e.width) + " height=" + str(e.height))
         except requests.exceptions.Timeout:
