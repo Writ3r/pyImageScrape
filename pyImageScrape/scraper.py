@@ -4,9 +4,9 @@
 import threading
 
 from shared import get_current_folder, DataStore
-from sqlliteDatasource import get_sqllite_datastore
-from content_scraper import URLScraper
-from pic_grabber import ImageScraper
+from datasource.sqlliteDatasource import get_sqllite_datastore
+from scrapers.content_scraper import URLScraper
+from scrapers.pic_grabber import ImageScraper
 
 
 class Scraper:
@@ -18,7 +18,7 @@ class Scraper:
     def __init__(
         self,
         baseUri: str,
-        dataFolderPath=get_current_folder() + "/data",
+        dataFolderPath=get_current_folder(__file__) + "/data",
         urlscraper: URLScraper = None,
         imgScraper: ImageScraper = None,
         dataStore: DataStore = None,

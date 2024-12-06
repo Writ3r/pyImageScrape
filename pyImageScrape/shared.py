@@ -1,9 +1,12 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import pathlib
 
 from abc import ABC, abstractmethod
 
-def get_current_folder():
-    return str(pathlib.Path(__file__).parent.absolute())
+def get_current_folder(file):
+    return str(pathlib.Path(file).parent.absolute())
 
 class DataStore(ABC):
 

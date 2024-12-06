@@ -1,13 +1,14 @@
 
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import sqlite3
-import os
-import threading
 
 from shared import get_current_folder
 
 class DatabaseConnector:
 
-    def __init__(self, dataFolder, dbSetupFolder=get_current_folder()):
+    def __init__(self, dataFolder, dbSetupFolder=get_current_folder(__file__)):
         self.setupFileLoc = dbSetupFolder + "/tableSetup.sql"
         self.dbPath = dataFolder + "/sqllite.db"
         self._run_setup()

@@ -1,4 +1,5 @@
-
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 import io
 import hashlib
@@ -34,7 +35,7 @@ class ImageScraper:
         imageMinWidth=400,
         imageMinHeight=300,
         outputType="png",
-        dataFolderPath=get_current_folder() + "/data",
+        dataFolderPath=get_current_folder(__file__) + "/data",
     ):
         self.dataStore = dataStore
         self._threadExec = ThreadPoolExecutor(max_workers=maxThreads)
