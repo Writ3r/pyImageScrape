@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import urllib
+import logging
 
 from shared import DataStore
 from typing import List
@@ -12,7 +13,6 @@ from shared import DataStore
 
 # https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html
 IMG_FILE_TYPES = ["jpg", "jpeg", "jfif", "pjpeg", "pjp", "png", "webp"]
-
 
 class URLScraper:
 
@@ -42,6 +42,7 @@ class URLScraper:
                 self._store_pic_urls(content, changedUrl)
                 # mark current content url as visited
                 self.dataStore.add_visited_content_url(newUrl)
+                logging.info(f"Scraped content {newUrl=}")
             except Exception as e:
                 # mark current content url as visited & failed
                 self.dataStore.add_visited_content_url(newUrl, "Failed")

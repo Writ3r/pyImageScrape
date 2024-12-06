@@ -2,12 +2,14 @@
 # -*- coding: utf-8 -*-
 
 import threading
+import logging
 
 from shared import get_current_folder, DataStore
 from datasource.sqllite_datasource import get_sqllite_datastore
 from scrapers.content_scraper import URLScraper
 from scrapers.pic_grabber import ImageScraper
 
+logging.basicConfig(level=logging.INFO, format="{asctime} - {levelname} - {message}", style="{", datefmt="%Y-%m-%d %H:%M",)
 
 class Scraper:
     """
@@ -45,13 +47,13 @@ class Scraper:
         )
 
     def run(self):
-        # startup image scraping
+        logging.info("Starting image scraping")
         scrape_img_thread = threading.Thread(target=self.imgScraper.scrape_images)
         scrape_img_thread.start()
-        # startup url scraping
+        logging.info("Starting url content scraping")
         scrape_url_thread = threading.Thread(target=self.urlscraper.scrape_urls)
         scrape_url_thread.start()
-        # finish out threads
         scrape_url_thread.join()
         self.imgScraper.set_can_stop_image_scraping()
         scrape_img_thread.join()
+        logging.info("Scraping is finished, exiting program")

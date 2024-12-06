@@ -8,6 +8,7 @@ import os
 import pathlib
 import urllib
 import time
+import logging
 
 from concurrent.futures import ThreadPoolExecutor, wait
 from PIL import Image
@@ -88,9 +89,8 @@ class ImageScraper:
         try:
             self._get_and_save_image_to_file_impl(image_url, output_dir)
         except ImgReqFailed as e:
-            self.dataStore.add_visited_pic_url(image_url, "HTTP_STATUS: " + e.statusCode)
         except ImgTooSmall as e:
-            self.dataStore.add_visited_pic_url(image_url, "IMG_TOO_SMALL: width=" + e.width + " height=" + e.height)
+            self.dataStore.add_visited_pic_url(image_url, "IMG_TOO_SMALL: width=" + str(e.width) + " height=" + str(e.height))
         except requests.exceptions.Timeout:
             self.dataStore.add_visited_pic_url(image_url, "TIMEOUT")
         except requests.exceptions.TooManyRedirects:
@@ -132,6 +132,7 @@ class ImageScraper:
         image.save(output_dir / fileRelPath)
         self.dataStore.add_stored_pic_url(image_url, fileRelPath, filesha)
         self.dataStore.add_visited_pic_url(image_url)
+        logging.info(f"Grabbed pic {image_url=}")
 
     def set_can_stop_image_scraping(self):
         self.continueScraping = False
