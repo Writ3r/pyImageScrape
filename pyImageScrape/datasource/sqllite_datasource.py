@@ -54,7 +54,7 @@ class SqlLiteDataStore:
 
     CREATE = "INSERT OR IGNORE INTO TB_URL (urlLoc, visited) VALUES (?,?);"
     READ_ONE_LIMIT = "SELECT * FROM TB_URL WHERE visited = ? LIMIT 1;"
-    READ_ALL = "SELECT * FROM TB_URL WHERE visited = ?;"
+    READ_ALL = "SELECT * FROM TB_URL WHERE visited = ? LIMIT ?;"
     UPDATE_URL = "UPDATE TB_URL SET urlLoc = ?, visited = ?, err = ? WHERE urlLoc = ?;"
     CREATE_STORED_PIC_URL = "INSERT OR IGNORE INTO storedPics (urlLoc, filePath, shaPicHash) VALUES (?,?,?);"
     CHECK_VISITED = "SELECT * FROM TB_URL WHERE urlLoc = ? AND visited = 1;"
@@ -78,8 +78,8 @@ class SqlLiteDataStore:
     def get_next_content_to_visit(self):
         return self._get_next_to_visit(SqlLiteDataStore.CONTENT_URL_TB)
 
-    def get_all_pics_to_visit(self):
-        return self._get_all_to_visit(SqlLiteDataStore.PIC_URL_TB)
+    def get_all_pics_to_visit(self, n=10000):
+        return self._get_all_to_visit(str(n), SqlLiteDataStore.PIC_URL_TB)
 
     def add_visited_content_url(self, urlLoc, err=None):
         self._add_visited_url(urlLoc, err, SqlLiteDataStore.CONTENT_URL_TB)
@@ -118,10 +118,10 @@ class SqlLiteDataStore:
         else:
             return None
 
-    def _get_all_to_visit(self, table):
+    def _get_all_to_visit(self, size, table):
         """get all the next urls to visit"""
         query = SqlLiteDataStore.READ_ALL.replace("TB_URL", table)
-        resp = self.dbConn.execute(query, (0,))
+        resp = self.dbConn.execute(query, (0,size))
         visitList = []
         for item in resp:
             visitList.append(item["urlLoc"])

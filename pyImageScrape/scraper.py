@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import threading
 import logging
 
-from shared import get_current_folder, DataStore
+from shared import get_current_folder, DataStore, ScrapeJobProducer
 from datasource.sqllite_datasource import get_sqllite_datastore
-from scrapers.content_scraper import URLScraper
-from scrapers.pic_grabber import ImageScraper
+from data_scraper.content_scraper import URLScraper
+from data_scraper.pic_scraper import ImageScraper
+from producer.scrape_job_producer import SimpleScrapeJobProducer
 
 logging.basicConfig(level=logging.INFO, format="{asctime} - {levelname} - {message}", style="{", datefmt="%Y-%m-%d %H:%M",)
 
@@ -19,13 +19,14 @@ class Scraper:
 
     def __init__(
         self,
-        baseUri: str,
+        baseUrl: str,
         dataFolderPath=get_current_folder(__file__) + "/data",
         urlscraper: URLScraper = None,
         imgScraper: ImageScraper = None,
         dataStore: DataStore = None,
+        scrapeJobProducer: ScrapeJobProducer = None
     ):
-        # use sqllite datasource if not given
+        # setup datastore, use sqllite datasource if not given
         self.dataStore = (
             dataStore
             if dataStore is not None
@@ -36,7 +37,7 @@ class Scraper:
         self.urlscraper = (
             urlscraper
             if urlscraper is not None
-            else URLScraper(self.dataStore, baseUri)
+            else URLScraper(self.dataStore, baseUrl)
         )
 
         # setup img scraper
@@ -46,14 +47,14 @@ class Scraper:
             else ImageScraper(self.dataStore, dataFolderPath=dataFolderPath)
         )
 
+        # setup scrape job producer
+        self.scrapeJobProducer = (
+            scrapeJobProducer
+            if scrapeJobProducer is not None
+            else SimpleScrapeJobProducer(baseUrl, self.dataStore, self.urlscraper,self.imgScraper)
+        )
+
     def run(self):
-        logging.info("Starting image scraping")
-        scrape_img_thread = threading.Thread(target=self.imgScraper.scrape_images)
-        scrape_img_thread.start()
-        logging.info("Starting url content scraping")
-        scrape_url_thread = threading.Thread(target=self.urlscraper.scrape_urls)
-        scrape_url_thread.start()
-        scrape_url_thread.join()
-        self.imgScraper.set_can_stop_image_scraping()
-        scrape_img_thread.join()
+        logging.info("Running Scrape Job Producer")
+        self.scrapeJobProducer.run_producer()
         logging.info("Scraping is finished, exiting program")

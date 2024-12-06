@@ -3,6 +3,7 @@
 
 import urllib
 import logging
+import threading
 
 from shared import DataStore
 from typing import List
@@ -10,6 +11,7 @@ from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from shared import DataStore
+from threading import Semaphore
 
 # https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html
 IMG_FILE_TYPES = ["jpg", "jpeg", "jfif", "pjpeg", "pjp", "png", "webp"]
@@ -21,9 +23,31 @@ class URLScraper:
         self.driver = self._build_driver()
         self.redriectRetries = redriectRetries
         self.baseUrl = baseUrl
-
-    def scrape_urls(self):
+        self.lock = threading.Lock()
+    
+    def scrape_url(self, url):
         """scrapes urls of all img content & links to other pages"""
+        with self.lock: # Lock here since chrome driver likely won't thake multithreading well..
+            try:
+                # parse all content
+                changedUrl, content = self._get_content_from_url(url)
+                # store content and pics
+                self._store_content_urls(content, changedUrl)
+                self._store_pic_urls(content, changedUrl)
+                # mark current content url as visited
+                self.dataStore.add_visited_content_url(url)
+                logging.info(f"Scraped content {url=}")
+            except Exception as e:
+                # mark current content url as visited & failed
+                self.dataStore.add_visited_content_url(url, "Failed")
+
+            # TODO HACK: remake driver if too many tabs (need better way to do this, possibly keep track of current tab and close all others)
+            if len(self.driver.window_handles) > 10:
+                self.driver.quit()
+                self.driver = self._build_driver()
+
+    """
+    def scrape_urls(self):
 
         # put root URL into queue
         self.dataStore.add_to_visit_content_urls([self.baseUrl])
@@ -54,6 +78,7 @@ class URLScraper:
 
         # exit since finished
         self.driver.quit()
+    """
 
     def _store_content_urls(self, content, url):
         """gets content URLs from the page content & stores them in the datasource"""

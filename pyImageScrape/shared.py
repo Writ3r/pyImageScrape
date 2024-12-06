@@ -8,6 +8,18 @@ from abc import ABC, abstractmethod
 def get_current_folder(file):
     return str(pathlib.Path(file).parent.absolute())
 
+class ScrapeJobProducer(ABC):
+
+    @abstractmethod
+    def run_producer(self):
+        """runs the producer for Scrape jobs"""
+
+class UrlScrapeJobConsumer(ABC):
+
+    @abstractmethod
+    def scrape_url(self, url):
+        """executes a scrape attempt on the provided URL"""
+
 class DataStore(ABC):
 
     @abstractmethod
@@ -46,6 +58,6 @@ class DataStore(ABC):
         pass
 
     @abstractmethod
-    def get_all_pics_to_visit(self):
+    def get_all_pics_to_visit(self, n=10000):
         """get all the next pic urls to visit"""
         pass
