@@ -53,6 +53,10 @@ def build_base_url(url: str):
 def get_url_filetype(url: str):
     return url.split("/")[-1].split("?")[0].split(".")[-1]
 
+def mkdirs_if_needed(path: str):
+    if not os.path.exists(path):
+        os.makedirs(path)
+
 
 # ================================================================
 #
@@ -307,7 +311,9 @@ class ImageScraper:
             )
             filesha = hashlib.sha1(image_content).hexdigest()[:15]
             filename = filesha + "." + urlType
-            fileRelPath = filename
+            fileRelFolder = filesha[0:2] + "/" +  filesha[2:4] + "/" + filesha[4:6]
+            fileRelPath = fileRelFolder + "/"  + filename
+            mkdirs_if_needed(str(output_dir / fileRelFolder))
             file_path = output_dir / fileRelPath
             image.save(file_path)
             self.dataStore.add_stored_pic_url(image_url, fileRelPath, filesha)
