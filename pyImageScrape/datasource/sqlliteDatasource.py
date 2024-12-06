@@ -56,6 +56,7 @@ class SqlLiteDataStore:
     READ_ONE_LIMIT = "SELECT * FROM TB_URL WHERE visited = ? LIMIT 1;"
     READ_ALL = "SELECT * FROM TB_URL WHERE visited = ?;"
     UPDATE_URL = "UPDATE TB_URL SET urlLoc = ?, visited = ? WHERE urlLoc = ?;"
+    SET_PIC_URL_VISTIED = "UPDATE picUrls SET urlLoc = ?, visited = ?, err = ? WHERE urlLoc = ?;"
     CREATE_STORED_PIC_URL = "INSERT OR IGNORE INTO storedPics (urlLoc, filePath, shaPicHash) VALUES (?,?,?);"
     CHECK_VISITED = "SELECT * FROM TB_URL WHERE urlLoc = ? AND visited = 1;"
     CHECK_EXISTS = "SELECT * FROM TB_URL WHERE urlLoc = ?;"
@@ -72,9 +73,6 @@ class SqlLiteDataStore:
     def add_visited_content_urls(self, urlLocs):
         self._add_visited_urls(urlLocs, SqlLiteDataStore.CONTENT_URL_TB)
 
-    def add_visited_pic_urls(self, urlLocs):
-        self._add_visited_urls(urlLocs, SqlLiteDataStore.PIC_URL_TB)
-
     def get_next_pic_to_visit(self):
         return self._get_next_to_visit(SqlLiteDataStore.PIC_URL_TB)
 
@@ -83,6 +81,9 @@ class SqlLiteDataStore:
 
     def get_all_pics_to_visit(self):
         return self._get_all_to_visit(SqlLiteDataStore.PIC_URL_TB)
+    
+    def add_visited_pic_url(self, urlLoc, err = None):
+        self.dbConn.execute(SqlLiteDataStore.SET_PIC_URL_VISTIED, (urlLoc, 1, err, urlLoc))
 
     def add_stored_pic_url(self, urlLoc, filePath, shaPicHash):
         # would also be good to save off timestamp of grab & alt data

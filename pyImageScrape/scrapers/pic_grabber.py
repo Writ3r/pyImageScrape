@@ -13,8 +13,6 @@ from concurrent.futures import ThreadPoolExecutor, wait
 from PIL import Image
 from shared import get_current_folder, DataStore
 
-CHROME_USER_AGENT = """Mozilla/5.0"""
-
 def build_base_url(url: str):
     parsedUrl = urllib.parse.urlparse(url)
     return parsedUrl.scheme + "://" + parsedUrl.netloc
@@ -25,6 +23,15 @@ def get_url_filetype(url: str):
 def mkdirs_if_needed(path: str):
     if not os.path.exists(path):
         os.makedirs(path)
+
+class ImgReqFailed(Exception):
+    def __init__(self, statusCode):
+        self.statusCode = statusCode
+
+class ImgTooSmall(Exception):
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
 
 class ImageScraper:
 
@@ -45,13 +52,11 @@ class ImageScraper:
         self.imageSaveLoc = dataFolderPath + "/images"
         self.imageSavePath = pathlib.Path(self.imageSaveLoc)
         self.continueScraping = True
-        # mkdir img loc
-        if not os.path.exists(self.imageSaveLoc):
-            os.makedirs(self.imageSaveLoc)
 
     def scrape_images(self):
         # run until there are no pics left or program ends
-        while self.continueScraping:
+        picsStillExist = True
+        while self.continueScraping or picsStillExist:
             try:
                 # walk all image urls on the page
                 futures = []
@@ -60,6 +65,7 @@ class ImageScraper:
                 # go back if nothing to visit
                 if allToVisit is None or len(allToVisit) == 0:
                     time.sleep(1)
+                    picsStillExist = False
                     continue
 
                 for item in allToVisit:
@@ -81,31 +87,51 @@ class ImageScraper:
         """grabes image, checks it, and saves image to output directory"""
         try:
             self._get_and_save_image_to_file(image_url, output_dir)
-        except:
-            pass
-        self.dataStore.add_visited_pic_urls([image_url])
+        except ImgReqFailed as e:
+            self.dataStore.add_visited_pic_url(image_url, "HTTP_STATUS: " + e.statusCode)
+        except ImgTooSmall as e:
+            self.dataStore.add_visited_pic_url(image_url, "IMG_TOO_SMALL: width=" + e.width + " height=" + e.height)
+        except requests.exceptions.Timeout:
+            self.dataStore.add_visited_pic_url(image_url, "TIMEOUT")
+        except requests.exceptions.TooManyRedirects:
+            self.dataStore.add_visited_pic_url(image_url, "TOO_MANY_REDIRECT")
+        except requests.exceptions.RequestException as e:
+            self.dataStore.add_visited_pic_url(image_url, "UNKNOWN_REQ_FAILURE")
+        except Exception as e:
+            self.dataStore.add_visited_pic_url(image_url, "UNKNOWN_FAILURE")
     
     def _get_and_save_image_to_file(self, image_url, output_dir):
-        response = requests.get(
-            image_url, headers={"User-agent": CHROME_USER_AGENT}, timeout=30
+        # make the request
+        session = requests.Session()
+        session.max_redirects = 5
+        response = session.get(
+            image_url, headers={"User-agent": """Mozilla/5.0"""}, timeout=30
         )
+
+        # throw err if failed
+        if not response.status_code == requests.codes.ok:
+            raise ImgReqFailed(response.status_code)
+        
         image_content = response.content
         image_file = io.BytesIO(image_content)
         image = Image.open(image_file).convert("RGB")
-        width, height = image.size
-        if width >= self.imageMinWidth and height >= self.imageMinHeight:
-            urlType = (
-                self.outputType if self.outputType else get_url_filetype(image_url)
-            )
-            filesha = hashlib.sha1(image_content).hexdigest()[:15]
-            filename = filesha + "." + urlType
-            fileRelFolder = filesha[0:2] + "/" +  filesha[2:4] + "/" + filesha[4:6]
-            fileRelPath = fileRelFolder + "/"  + filename
-            mkdirs_if_needed(str(output_dir / fileRelFolder))
-            file_path = output_dir / fileRelPath
-            image.save(file_path)
-            self.dataStore.add_stored_pic_url(image_url, fileRelPath, filesha)
-        raise Exception("Failed to parse url")
 
-    def stop_image_scraping(self):
+        # throw err if img is too small to care about
+        width, height = image.size
+        if width <= self.imageMinWidth or height <= self.imageMinHeight:
+            raise ImgTooSmall(width, height)
+
+        urlType = (
+            self.outputType if self.outputType else get_url_filetype(image_url)
+        )
+        filesha = hashlib.sha1(image_content).hexdigest()[:15]
+        filename = filesha + "." + urlType
+        fileRelFolder = filesha[0:2] + "/" +  filesha[2:4] + "/" + filesha[4:6]
+        fileRelPath = fileRelFolder + "/"  + filename
+        mkdirs_if_needed(str(output_dir / fileRelFolder))
+        image.save(output_dir / fileRelPath)
+        self.dataStore.add_stored_pic_url(image_url, fileRelPath, filesha)
+        self.dataStore.add_visited_pic_url(image_url)
+
+    def can_stop_image_scraping(self):
         self.continueScraping = False

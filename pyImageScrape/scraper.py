@@ -53,5 +53,5 @@ class Scraper:
         scrape_url_thread.start()
         # finish out threads
         scrape_url_thread.join()
-        self.imgScraper.stop_image_scraping()
+        self.imgScraper.can_stop_image_scraping()
         scrape_img_thread.join()

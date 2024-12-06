@@ -26,7 +26,7 @@ class DataStore(ABC):
         pass
 
     @abstractmethod
-    def add_visited_pic_urls(self, urlLocs):
+    def add_visited_pic_url(self, urlLoc, err = None):
         """tag multiple pic urls as visited"""
         pass
 

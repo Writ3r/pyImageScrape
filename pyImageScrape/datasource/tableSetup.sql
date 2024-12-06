@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS urls (
 
 CREATE TABLE IF NOT EXISTS picUrls (
     urlLoc TEXT PRIMARY KEY NOT NULL,
+    err TEXT,
     visited INTEGER
 );
 
