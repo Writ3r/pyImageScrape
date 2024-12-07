@@ -65,6 +65,6 @@ class DataStore(ABC):
         pass
 
     @abstractmethod
-    def get_all_pics_to_visit(self, n=10000):
+    def get_all_pics_to_visit(self, n=1000):
         """get all the next pic urls to visit"""
         pass

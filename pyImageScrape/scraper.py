@@ -10,7 +10,12 @@ from data_scraper.pic_scraper import ImageScraper
 from producer.scrape_job_producer import SimpleScrapeJobProducer
 from file_storage.local_filestorage import LocalFileStorage
 
-logging.basicConfig(level=logging.INFO, format="{asctime} - {levelname} - {message}", style="{", datefmt="%Y-%m-%d %H:%M",)
+logging.basicConfig(
+    level=logging.INFO,
+    format="{asctime} - {levelname} - {message}",
+    style="{",
+    datefmt="%Y-%m-%d %H:%M",
+)
 
 class Scraper:
     """
@@ -26,7 +31,7 @@ class Scraper:
         imgScraper: ImageScraper = None,
         dataStore: DataStore = None,
         fileStorage: FileStorage = None,
-        scrapeJobProducer: ScrapeJobProducer = None
+        scrapeJobProducer: ScrapeJobProducer = None,
     ):
         # setup datastore, use sqllite datasource if not given
         self.dataStore = (
@@ -60,7 +65,9 @@ class Scraper:
         self.scrapeJobProducer = (
             scrapeJobProducer
             if scrapeJobProducer is not None
-            else SimpleScrapeJobProducer(baseUrl, self.dataStore, self.urlscraper, self.imgScraper)
+            else SimpleScrapeJobProducer(
+                baseUrl, self.dataStore, self.urlscraper, self.imgScraper
+            )
         )
 
     def run(self):
